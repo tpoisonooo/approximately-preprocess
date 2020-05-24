@@ -13,7 +13,7 @@ int yuv420sp2bgr_half(unsigned char* yuv, const int w, const int h, unsigned cha
     int8x8_t _s113 = vdup_n_s8(113);
     int8x8_t _sn22 = vdup_n_s8(-22);
     int16x8_t _s0 = vdupq_n_s16(0);
-    int16x8_t _s8160 = vdupq_n_s16(8160); // 255 << 6
+    int16x8_t _s16320 = vdupq_n_s16(16320); // 255 << 6
 #endif
 
     unsigned char* puv = yuv + w * h;
@@ -22,7 +22,7 @@ int yuv420sp2bgr_half(unsigned char* yuv, const int w, const int h, unsigned cha
 
     for (int i = 0; i < hstep; ++i) {
         for (int j = 0; j < wstep; ++j) {
-#if __ARM_NEON
+#if __ARM_NEON 
             uint8x16_t y0 = vld1q_u8(py0);
             uint8x16_t y1 = vld1q_u8(py1);
 
@@ -36,7 +36,7 @@ int yuv420sp2bgr_half(unsigned char* yuv, const int w, const int h, unsigned cha
 
             uint16x8_t y8_sum = vcombine_u16(low_sum, high_sum);
             // y8 = (y8_sum >> 2) << 6 = y8_sum << 4;
-            uint16x8_t y8 = vshlq_n_u16(y8_sum, 4);
+            int16x8_t y8 = vreinterpretq_s16_u16(vshlq_n_u16(y8_sum, 4));
 
             // prepare uv
             uint8x8x2_t vu = vld2_u8(puv);
@@ -49,8 +49,8 @@ int yuv420sp2bgr_half(unsigned char* yuv, const int w, const int h, unsigned cha
             int16x8_t b_acc = vmlal_s8(y8, u, _s113);
 
 #define SHIFT_6_SATURATE(FROM,TO) \
-            FROM = vmaxq_s16(vminq_s16((FROM), _s8160), _s0); \
-            uint8x8_t TO = vshrn_n_s16(vreinterpretq_u16_s16((FROM)), 6);
+            FROM = vmaxq_s16(vminq_s16((FROM), _s16320), _s0); \
+            uint8x8_t TO = vshrn_n_u16(vreinterpretq_u16_s16((FROM)), 6);
             
             SHIFT_6_SATURATE(b_acc, b_out)
             SHIFT_6_SATURATE(g_acc, g_out)
