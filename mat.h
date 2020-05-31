@@ -7,4 +7,4 @@
 #include <math.h>
 #include <algorithm>
 
-int yuv420sp2bgr_half(unsigned char* yuv, const int w, const int h, unsigned char* bgr, const int direction = 0);
+int yuv420sp2rgb_half(const unsigned char* yuv, const int w, const int h, unsigned char* rgb); 

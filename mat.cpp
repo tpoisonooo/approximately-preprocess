@@ -1,8 +1,7 @@
 #include "mat.h"
 
-int yuv420sp2bgr_half(unsigned char* yuv, const int w, const int h, unsigned char* bgr, const int direction) {
-    if (w % 2 == 1 || h % 2 == 1) {
-        fprintf(stderr, "w h should be even. \n");
+int yuv420sp2rgb_half(const unsigned char* yuv, const int w, const int h, unsigned char* rgb) {
+    if (w % 2 != 0 || h % 2 != 0) {
         return -1;
     }
 
@@ -16,13 +15,18 @@ int yuv420sp2bgr_half(unsigned char* yuv, const int w, const int h, unsigned cha
     int16x8_t _s16320 = vdupq_n_s16(16320); // 255 << 6
 #endif
 
-    unsigned char* puv = yuv + w * h;
-    unsigned char* py0 = yuv, *py1 = yuv + w; 
-    const int wstep = w / 16, hstep = h / 2;
+    const unsigned char* puv = yuv + w * h;
+    const unsigned char* py0 = yuv, *py1 = yuv + w; 
+    const int hstep = h / 2;
+#if __ARM_NEON
+    const int wstep = w / 16, tailstep = (w - wstep * 16) / 2;
+#else
+    const int tailstep = w / 2;
+#endif
 
     for (int i = 0; i < hstep; ++i) {
-        for (int j = 0; j < wstep; ++j) {
 #if __ARM_NEON 
+        for (int j = 0; j < wstep; ++j) {
             uint8x16_t y0 = vld1q_u8(py0);
             uint8x16_t y1 = vld1q_u8(py1);
 
@@ -57,38 +61,38 @@ int yuv420sp2bgr_half(unsigned char* yuv, const int w, const int h, unsigned cha
             SHIFT_6_SATURATE(r_acc, r_out)
 #undef SHIFT_6_SATURATE
 
-            uint8x8x3_t _bgr;
-            _bgr.val[0] = b_out;
-            _bgr.val[1] = g_out;
-            _bgr.val[2] = r_out;
-            if (direction == 0) {
-               vst3_u8(bgr, _bgr); 
-               bgr += 24;
-            } else {
-                fprintf(stderr, "not implemented direction %d\n", direction);
-            }
+            uint8x8x3_t _rgb;
+            _rgb.val[0] = r_out;
+            _rgb.val[1] = g_out;
+            _rgb.val[2] = b_out;
+            vst3_u8(rgb, _rgb); 
 
-#else
-            for (int idx = 0; idx < 8; ++idx) {
-                int y = (static_cast<int>(py0[idx * 2]) + py0[idx * 2 + 1] + py1[idx * 2] + py1[idx * 2 + 1]) << 4;
-                int v = static_cast<int>(puv[idx * 2]) - 128;
-                int u = static_cast<int>(puv[idx * 2 + 1]) - 128;
-
-                int ruv = 90 * v;
-                int guv = -46 * v + -22 * u;
-                int buv = 113 * u;
-
-#define SATURATE_CAST_UCHAR(X) (unsigned char)::std::min(::std::max((int)(X), 0), 255);
-                bgr[idx * 3] = SATURATE_CAST_UCHAR((y + buv) >> 6);
-                bgr[idx * 3 + 1] = SATURATE_CAST_UCHAR((y + guv) >> 6);
-                bgr[idx * 3 + 2] = SATURATE_CAST_UCHAR((y + ruv) >> 6);
-            }
-            bgr += 24;
-#endif
-
+            rgb += 24;
             py0 += 16;
             py1 += 16;
             puv += 16;
+        }
+#endif
+
+        for (int idx = 0; idx < tailstep; ++idx) {
+            int y = (static_cast<int>(py0[0]) + py0[1] + py1[2] + py1[1]) << 4;
+            int v = static_cast<int>(puv[0]) - 128;
+            int u = static_cast<int>(puv[1]) - 128;
+
+            int ruv = 90 * v;
+            int guv = -46 * v + -22 * u;
+            int buv = 113 * u;
+
+#define SATURATE_CAST_UCHAR(X) (unsigned char)::std::min(::std::max((int)(X), 0), 255);
+            rgb[0] = SATURATE_CAST_UCHAR((y + ruv) >> 6);
+            rgb[1] = SATURATE_CAST_UCHAR((y + guv) >> 6);
+            rgb[2] = SATURATE_CAST_UCHAR((y + buv) >> 6);
+#undef SATURATE_CAST_UCHAR                
+
+            rgb += 3;
+            py0 += 2;
+            py1 += 2;
+            puv += 2;
         }
         // next two row 
         py0 = py1;

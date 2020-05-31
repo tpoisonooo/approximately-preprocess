@@ -43,7 +43,9 @@ void BGR2YUV420P(unsigned char *bgr24, int width, int height, unsigned char *yuv
 }
 
 int main() {
-    cv::Mat m = cv::imread("1080p.png");
+    cv::Mat m1 = cv::imread("1080p.png");
+    cv::Mat m;
+    cv::resize(m1, m, cv::Size(1998, 1000));
     if (m.empty()) {
         fprintf(stderr, "m is empty\n");
     }
@@ -60,6 +62,8 @@ int main() {
 
 
     cv::Mat out2(out.rows / 2, out.cols / 2, CV_8UC3);
-    yuv420sp2bgr_half(yuv.data, m.cols, m.rows, out2.data);
-    cv::imwrite("dt.png", out2);
+    yuv420sp2rgb_half(yuv.data, m.cols, m.rows, out2.data);
+    cv::Mat bgr;
+    cv::cvtColor(out2, bgr, cv::COLOR_BGR2RGB);
+    cv::imwrite("dt.png", bgr);
 }
